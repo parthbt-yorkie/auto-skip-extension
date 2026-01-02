@@ -5,6 +5,7 @@
 
     let isEnabled = true;
     let checkInterval = null;
+    let observer = null;
     let skippedCount = 0;
     let dismissedCount = 0;
     let lastSkipTime = 0;
@@ -91,17 +92,18 @@
         if (checkInterval) return;
         checkInterval = setInterval(checkAndSkip, 500);
 
-        const observer = new MutationObserver(() => {
-            if (isEnabled) setTimeout(checkAndSkip, 100);
-        });
-
-        if (document.body) {
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['class']
+        if (!observer) {
+            observer = new MutationObserver(() => {
+                if (isEnabled) setTimeout(checkAndSkip, 100);
             });
+            if (document.body) {
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: true,
+                    attributes: true,
+                    attributeFilter: ['class']
+                });
+            }
         }
     }
 
@@ -109,6 +111,10 @@
         if (checkInterval) {
             clearInterval(checkInterval);
             checkInterval = null;
+        }
+        if (observer) {
+            observer.disconnect();
+            observer = null;
         }
     }
 

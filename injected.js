@@ -8,7 +8,11 @@
             const player = document.getElementById('movie_player');
             if (player && typeof player.stopVideo === 'function') {
                 player.stopVideo();
-                setTimeout(() => player.playVideo && player.playVideo(), 100);
+                setTimeout(() => {
+                    if (typeof player.playVideo === 'function') {
+                        player.playVideo();
+                    }
+                }, 100);
             }
         }
     });
