@@ -8,9 +8,8 @@
     let observer = null;
     let skippedCount = 0;
     let dismissedCount = 0;
-    let lastSkipTime = 0;
-    let lastDismissTime = 0;
-    const DEBOUNCE_MS = 2000;
+    let lastCountTime = 0;
+    const DEBOUNCE_MS = 5000;
 
     function loadState() {
         try {
@@ -32,40 +31,38 @@
         } catch (e) { }
     }
 
-    function sendSkipCommand() {
-        window.dispatchEvent(new CustomEvent('youtube-auto-skip-command', { detail: 'skip-ad' }));
+    function sendCommand(command) {
+        window.dispatchEvent(new CustomEvent('youtube-auto-skip-command', { detail: command }));
     }
 
     function isAdPlaying() {
         const player = document.getElementById('movie_player');
         return !!(
             document.querySelector('.ytp-ad-player-overlay-layout') ||
-            document.querySelector('.ytp-skip-ad-button') ||
             (player && player.classList.contains('ad-showing'))
         );
     }
 
-    function isSkipButtonAvailable() {
-        const btn = document.querySelector('button.ytp-skip-ad-button');
-        if (!btn || btn.style.display === 'none') return false;
-        return (btn.textContent || '').toLowerCase().includes('skip');
-    }
-
-    function skipAd() {
+    function handleAd() {
         const now = Date.now();
-        if (now - lastSkipTime < DEBOUNCE_MS) return false;
-
-        sendSkipCommand();
-        lastSkipTime = now;
-        skippedCount++;
-        saveStats();
-        return true;
+        
+        if (isAdPlaying()) {
+            // Speed up the ad
+            sendCommand('speed-up-ad');
+            
+            // Count this ad (debounced)
+            if (now - lastCountTime > DEBOUNCE_MS) {
+                lastCountTime = now;
+                skippedCount++;
+                saveStats();
+            }
+        } else {
+            // Restore normal playback when ad ends
+            sendCommand('restore-normal');
+        }
     }
 
     function tryDismissPopup() {
-        const now = Date.now();
-        if (now - lastDismissTime < DEBOUNCE_MS) return false;
-
         const dialog = document.querySelector('yt-confirm-dialog-renderer');
         if (!dialog) return false;
 
@@ -74,7 +71,6 @@
 
         if (btn) {
             btn.click();
-            lastDismissTime = now;
             dismissedCount++;
             saveStats();
             return true;
@@ -82,19 +78,19 @@
         return false;
     }
 
-    function checkAndSkip() {
+    function checkAndHandle() {
         if (!isEnabled) return;
-        if (isAdPlaying() && isSkipButtonAvailable()) skipAd();
+        handleAd();
         tryDismissPopup();
     }
 
     function startMonitoring() {
         if (checkInterval) return;
-        checkInterval = setInterval(checkAndSkip, 500);
+        checkInterval = setInterval(checkAndHandle, 300);
 
         if (!observer) {
             observer = new MutationObserver(() => {
-                if (isEnabled) setTimeout(checkAndSkip, 100);
+                if (isEnabled) setTimeout(checkAndHandle, 50);
             });
             if (document.body) {
                 observer.observe(document.body, {
@@ -116,6 +112,8 @@
             observer.disconnect();
             observer = null;
         }
+        // Restore normal playback when disabled
+        sendCommand('restore-normal');
     }
 
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
